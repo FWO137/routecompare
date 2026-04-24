@@ -6,6 +6,8 @@
 <title>RouteCompare</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>var CONFIG = {};</script>
+<script src="config.js" onerror="void(0)"></script>
 <style>
   /* ── Design tokens ── */
   :root {
@@ -524,9 +526,9 @@
 // ─────────────────────────────────────────────
 function getKeys() {
   return {
-    HERE_API_KEY:   localStorage.getItem('rc_here')   || '',
-    GOOGLE_API_KEY: localStorage.getItem('rc_google') || '',
-    TOMTOM_API_KEY: localStorage.getItem('rc_tomtom') || '',
+    HERE_API_KEY:   CONFIG.HERE_API_KEY   || localStorage.getItem('rc_here')   || '',
+    GOOGLE_API_KEY: CONFIG.GOOGLE_API_KEY || localStorage.getItem('rc_google') || '',
+    TOMTOM_API_KEY: CONFIG.TOMTOM_API_KEY || localStorage.getItem('rc_tomtom') || '',
   };
 }
 
@@ -553,8 +555,9 @@ document.getElementById('setup-overlay').addEventListener('click', function(e) {
   if (e.target === this) this.classList.remove('open');
 });
 
-// Show setup automatically if no keys saved yet
-if (!localStorage.getItem('rc_here') && !localStorage.getItem('rc_google') && !localStorage.getItem('rc_tomtom')) {
+// Show setup automatically only if no keys available from any source
+const _k = getKeys();
+if (!_k.HERE_API_KEY && !_k.GOOGLE_API_KEY && !_k.TOMTOM_API_KEY) {
   openSetup();
 }
 
