@@ -6,7 +6,6 @@
 <title>RouteCompare</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="config.js"></script>
 <style>
   /* ── Design tokens ── */
   :root {
@@ -323,6 +322,42 @@
   }
   .network-error p { font-size: .9rem; color: #991b1b; margin-bottom: 10px; }
 
+  /* ── Settings modal ── */
+  .settings-btn {
+    margin-left: auto;
+    background: none;
+    border: none;
+    font-size: 1.3rem;
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 6px;
+    line-height: 1;
+  }
+  .settings-btn:hover { background: var(--bg); }
+
+  .setup-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,.55);
+    z-index: 4000;
+    align-items: flex-end;
+    justify-content: center;
+  }
+  .setup-overlay.open { display: flex; }
+  .setup-modal {
+    background: var(--surface);
+    border-radius: var(--radius) var(--radius) 0 0;
+    padding: 24px 16px 36px;
+    width: 100%;
+    max-width: 600px;
+  }
+  .setup-modal h3 { font-size: 1.05rem; font-weight: 700; margin-bottom: 6px; }
+  .setup-modal p  { font-size: .85rem; color: var(--muted); margin-bottom: 16px; }
+  .setup-field { margin-bottom: 12px; }
+  .setup-field label { display: block; font-size: .78rem; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 4px; }
+  .key-missing { border-color: #fca5a5 !important; }
+
   /* ── Save favourite modal ── */
   .modal-overlay {
     display: none;
@@ -369,6 +404,7 @@
 <header>
   <span class="logo">🗺️</span>
   <h1>RouteCompare</h1>
+  <button class="settings-btn" id="settings-btn" title="API Keys">⚙️</button>
 </header>
 
 <main>
@@ -446,6 +482,30 @@
 
 </main>
 
+<!-- Settings / API Keys modal -->
+<div class="setup-overlay" id="setup-overlay">
+  <div class="setup-modal">
+    <h3>⚙️ API Keys</h3>
+    <p>Keys are stored only in your browser (localStorage) and never sent anywhere except the respective map provider.</p>
+    <div class="setup-field">
+      <label>HERE Maps API Key</label>
+      <input type="text" id="key-here" placeholder="Paste HERE API key…" autocomplete="off" />
+    </div>
+    <div class="setup-field">
+      <label>Google Maps API Key</label>
+      <input type="text" id="key-google" placeholder="Paste Google API key…" autocomplete="off" />
+    </div>
+    <div class="setup-field">
+      <label>TomTom API Key</label>
+      <input type="text" id="key-tomtom" placeholder="Paste TomTom API key…" autocomplete="off" />
+    </div>
+    <div class="modal-actions">
+      <button class="btn-outline" id="setup-cancel">Cancel</button>
+      <button class="btn-primary" id="setup-save">Save Keys</button>
+    </div>
+  </div>
+</div>
+
 <!-- Save favourite modal -->
 <div class="modal-overlay" id="modal-overlay">
   <div class="modal">
@@ -459,6 +519,45 @@
 </div>
 
 <script>
+// ─────────────────────────────────────────────
+//  API Key management (localStorage)
+// ─────────────────────────────────────────────
+function getKeys() {
+  return {
+    HERE_API_KEY:   localStorage.getItem('rc_here')   || '',
+    GOOGLE_API_KEY: localStorage.getItem('rc_google') || '',
+    TOMTOM_API_KEY: localStorage.getItem('rc_tomtom') || '',
+  };
+}
+
+function openSetup() {
+  const k = getKeys();
+  document.getElementById('key-here').value   = k.HERE_API_KEY;
+  document.getElementById('key-google').value = k.GOOGLE_API_KEY;
+  document.getElementById('key-tomtom').value = k.TOMTOM_API_KEY;
+  document.getElementById('setup-overlay').classList.add('open');
+}
+
+document.getElementById('settings-btn').addEventListener('click', openSetup);
+document.getElementById('setup-cancel').addEventListener('click', () => {
+  document.getElementById('setup-overlay').classList.remove('open');
+});
+document.getElementById('setup-save').addEventListener('click', () => {
+  localStorage.setItem('rc_here',   document.getElementById('key-here').value.trim());
+  localStorage.setItem('rc_google', document.getElementById('key-google').value.trim());
+  localStorage.setItem('rc_tomtom', document.getElementById('key-tomtom').value.trim());
+  _googleMapsPromise = null;
+  document.getElementById('setup-overlay').classList.remove('open');
+});
+document.getElementById('setup-overlay').addEventListener('click', function(e) {
+  if (e.target === this) this.classList.remove('open');
+});
+
+// Show setup automatically if no keys saved yet
+if (!localStorage.getItem('rc_here') && !localStorage.getItem('rc_google') && !localStorage.getItem('rc_tomtom')) {
+  openSetup();
+}
+
 // ─────────────────────────────────────────────
 //  State
 // ─────────────────────────────────────────────
@@ -701,8 +800,8 @@ function allRoutesIdentical(results) {
 // ─────────────────────────────────────────────
 
 async function fetchHERE(start, end) {
-  const key = CONFIG.HERE_API_KEY;
-  if (!key || key === 'YOUR_HERE_API_KEY') throw new Error('HERE API key not configured. See SETUP.md.');
+  const key = getKeys().HERE_API_KEY;
+  if (!key) throw new Error('HERE API key not configured. Click ⚙️ to add your keys.');
 
   const url = `https://router.hereapi.com/v8/routes?transportMode=car&origin=${start.lat},${start.lng}&destination=${end.lat},${end.lng}&return=polyline,travelSummary&departureTime=${encodeURIComponent(new Date().toISOString())}&apiKey=${key}`;
   const res = await fetch(url);
@@ -749,8 +848,8 @@ function ensureGoogleMapsLoaded(apiKey) {
 }
 
 async function fetchGoogle(start, end) {
-  const key = CONFIG.GOOGLE_API_KEY;
-  if (!key || key === 'YOUR_GOOGLE_API_KEY') throw new Error('Google API key not configured. See SETUP.md.');
+  const key = getKeys().GOOGLE_API_KEY;
+  if (!key) throw new Error('Google API key not configured. Click ⚙️ to add your keys.');
 
   await withTimeout(ensureGoogleMapsLoaded(key), 12000, 'Google Maps JS API load');
 
@@ -782,8 +881,8 @@ async function fetchGoogle(start, end) {
 }
 
 async function fetchTomTom(start, end) {
-  const key = CONFIG.TOMTOM_API_KEY;
-  if (!key || key === 'YOUR_TOMTOM_API_KEY') throw new Error('TomTom API key not configured. See SETUP.md.');
+  const key = getKeys().TOMTOM_API_KEY;
+  if (!key) throw new Error('TomTom API key not configured. Click ⚙️ to add your keys.');
 
   const url = `https://api.tomtom.com/routing/1/calculateRoute/${start.lat},${start.lng}:${end.lat},${end.lng}/json?traffic=true&travelMode=car&key=${key}`;
   const res = await fetch(url);
