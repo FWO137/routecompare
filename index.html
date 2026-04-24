@@ -6,7 +6,6 @@
 <title>RouteCompare</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script>var CONFIG = {};</script>
 <script src="config.js" onerror="void(0)"></script>
 <style>
   /* ── Design tokens ── */
@@ -525,10 +524,11 @@
 //  API Key management (localStorage)
 // ─────────────────────────────────────────────
 function getKeys() {
+  const c = window.CONFIG || {};
   return {
-    HERE_API_KEY:   CONFIG.HERE_API_KEY   || localStorage.getItem('rc_here')   || '',
-    GOOGLE_API_KEY: CONFIG.GOOGLE_API_KEY || localStorage.getItem('rc_google') || '',
-    TOMTOM_API_KEY: CONFIG.TOMTOM_API_KEY || localStorage.getItem('rc_tomtom') || '',
+    HERE_API_KEY:   c.HERE_API_KEY   || localStorage.getItem('rc_here')   || '',
+    GOOGLE_API_KEY: c.GOOGLE_API_KEY || localStorage.getItem('rc_google') || '',
+    TOMTOM_API_KEY: c.TOMTOM_API_KEY || localStorage.getItem('rc_tomtom') || '',
   };
 }
 
