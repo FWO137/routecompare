@@ -1,0 +1,1125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>RouteCompare</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="config.js"></script>
+<style>
+  /* ── Design tokens ── */
+  :root {
+    --here:    #0072C6;
+    --google:  #34A853;
+    --tomtom:  #FF6200;
+    --bg:      #f4f6f9;
+    --surface: #ffffff;
+    --text:    #1a1a2e;
+    --muted:   #6b7280;
+    --border:  #e5e7eb;
+    --radius:  12px;
+    --shadow:  0 2px 12px rgba(0,0,0,.08);
+    --fastest-bg: #f0fdf4;
+    --fastest-border: #22c55e;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100dvh;
+  }
+
+  /* ── Header ── */
+  header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 14px 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    position: sticky;
+    top: 0;
+    z-index: 1000;
+  }
+  header h1 {
+    font-size: 1.2rem;
+    font-weight: 700;
+    letter-spacing: -.3px;
+  }
+  header .logo { font-size: 1.4rem; }
+
+  /* ── Main layout ── */
+  main { padding: 16px; max-width: 600px; margin: 0 auto; }
+
+  /* ── Card ── */
+  .card {
+    background: var(--surface);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 16px;
+    margin-bottom: 16px;
+  }
+  .card h2 {
+    font-size: .85rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+    color: var(--muted);
+    margin-bottom: 12px;
+  }
+
+  /* ── Input group ── */
+  .input-group { display: flex; flex-direction: column; gap: 10px; }
+  .input-row { display: flex; gap: 8px; align-items: stretch; }
+  .input-row input { flex: 1; }
+
+  input[type="text"] {
+    width: 100%;
+    padding: 12px 14px;
+    border: 1.5px solid var(--border);
+    border-radius: 8px;
+    font-size: 1rem;
+    background: var(--bg);
+    color: var(--text);
+    outline: none;
+    transition: border-color .15s;
+  }
+  input[type="text"]:focus { border-color: var(--here); }
+
+  /* ── Autocomplete dropdown ── */
+  .autocomplete-wrapper { position: relative; flex: 1; }
+  .autocomplete-list {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0; right: 0;
+    background: var(--surface);
+    border: 1.5px solid var(--border);
+    border-radius: 8px;
+    box-shadow: var(--shadow);
+    z-index: 2000;
+    max-height: 200px;
+    overflow-y: auto;
+  }
+  .autocomplete-list li {
+    list-style: none;
+    padding: 10px 14px;
+    font-size: .95rem;
+    cursor: pointer;
+    border-bottom: 1px solid var(--border);
+  }
+  .autocomplete-list li:last-child { border-bottom: none; }
+  .autocomplete-list li:hover { background: var(--bg); }
+
+  /* ── Buttons ── */
+  button {
+    cursor: pointer;
+    border: none;
+    border-radius: 8px;
+    font-size: .95rem;
+    font-weight: 600;
+    transition: opacity .15s, transform .1s;
+  }
+  button:active { transform: scale(.97); }
+  button:disabled { opacity: .5; cursor: not-allowed; }
+
+  .btn-icon {
+    background: var(--bg);
+    border: 1.5px solid var(--border);
+    padding: 0 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.2rem;
+    min-width: 48px;
+  }
+  .btn-primary {
+    background: var(--here);
+    color: #fff;
+    padding: 13px;
+    width: 100%;
+    font-size: 1rem;
+  }
+  .btn-primary:hover:not(:disabled) { opacity: .88; }
+
+  .btn-sm {
+    padding: 8px 14px;
+    font-size: .85rem;
+  }
+
+  /* ── Favorites ── */
+  .fav-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  select {
+    flex: 1;
+    padding: 10px 12px;
+    border: 1.5px solid var(--border);
+    border-radius: 8px;
+    background: var(--bg);
+    color: var(--text);
+    font-size: .95rem;
+    outline: none;
+  }
+  .fav-actions { display: flex; gap: 6px; }
+  .btn-outline {
+    background: transparent;
+    border: 1.5px solid var(--border);
+    color: var(--text);
+    padding: 8px 12px;
+    font-size: .85rem;
+  }
+  .btn-danger {
+    background: transparent;
+    border: 1.5px solid #fca5a5;
+    color: #dc2626;
+    padding: 8px 12px;
+    font-size: .85rem;
+  }
+
+  /* ── Map ── */
+  #map {
+    height: 280px;
+    border-radius: var(--radius);
+    overflow: hidden;
+    margin-bottom: 16px;
+    box-shadow: var(--shadow);
+  }
+
+  /* ── Map legend ── */
+  .map-legend {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-top: 10px;
+  }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: .8rem;
+    font-weight: 600;
+  }
+  .legend-dot {
+    width: 12px; height: 12px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  /* ── Loading ── */
+  #loading {
+    display: none;
+    text-align: center;
+    padding: 24px;
+  }
+  .spinner {
+    width: 36px; height: 36px;
+    border: 3px solid var(--border);
+    border-top-color: var(--here);
+    border-radius: 50%;
+    animation: spin .7s linear infinite;
+    margin: 0 auto 10px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── Provider cards ── */
+  #results { display: none; }
+  .provider-cards { display: flex; flex-direction: column; gap: 10px; margin-bottom: 16px; }
+
+  .provider-card {
+    background: var(--surface);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 14px 16px;
+    border-left: 5px solid transparent;
+    position: relative;
+  }
+  .provider-card.here    { border-left-color: var(--here); }
+  .provider-card.google  { border-left-color: var(--google); }
+  .provider-card.tomtom  { border-left-color: var(--tomtom); }
+  .provider-card.fastest { background: var(--fastest-bg); }
+
+  .provider-card .badge-fastest {
+    position: absolute;
+    top: 10px; right: 12px;
+    background: var(--fastest-border);
+    color: #fff;
+    font-size: .7rem;
+    font-weight: 700;
+    padding: 3px 8px;
+    border-radius: 20px;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+  }
+  .provider-name {
+    font-size: 1rem;
+    font-weight: 700;
+    margin-bottom: 8px;
+  }
+  .provider-stats {
+    display: flex;
+    gap: 20px;
+  }
+  .stat { display: flex; flex-direction: column; gap: 2px; }
+  .stat-label { font-size: .72rem; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
+  .stat-value { font-size: 1.15rem; font-weight: 700; }
+  .provider-card .error-msg {
+    color: #dc2626;
+    font-size: .88rem;
+    margin-top: 4px;
+  }
+
+  /* ── Recommendation banner ── */
+  #recommendation {
+    border-radius: var(--radius);
+    padding: 16px 18px;
+    margin-bottom: 16px;
+    display: none;
+  }
+  #recommendation.winner {
+    background: linear-gradient(135deg, #1d4ed8 0%, #2563eb 100%);
+    color: #fff;
+  }
+  #recommendation.similar {
+    background: var(--surface);
+    border: 2px solid var(--border);
+    color: var(--text);
+  }
+  #recommendation h3 { font-size: 1.05rem; margin-bottom: 6px; }
+  #recommendation p  { font-size: .9rem; opacity: .9; margin-bottom: 12px; }
+  .btn-open-app {
+    background: rgba(255,255,255,.2);
+    color: #fff;
+    border: 2px solid rgba(255,255,255,.5);
+    padding: 10px 18px;
+    border-radius: 8px;
+    font-size: .9rem;
+    font-weight: 700;
+    text-decoration: none;
+    display: inline-block;
+    transition: background .15s;
+  }
+  .btn-open-app:hover { background: rgba(255,255,255,.35); }
+  #recommendation.similar .btn-open-app {
+    background: var(--bg);
+    color: var(--text);
+    border-color: var(--border);
+  }
+
+  /* ── Retry / errors ── */
+  .network-error {
+    background: #fef2f2;
+    border: 1px solid #fca5a5;
+    border-radius: var(--radius);
+    padding: 14px 16px;
+    margin-bottom: 16px;
+    display: none;
+  }
+  .network-error p { font-size: .9rem; color: #991b1b; margin-bottom: 10px; }
+
+  /* ── Save favourite modal ── */
+  .modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,.45);
+    z-index: 3000;
+    align-items: flex-end;
+    justify-content: center;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal {
+    background: var(--surface);
+    border-radius: var(--radius) var(--radius) 0 0;
+    padding: 20px 16px 32px;
+    width: 100%;
+    max-width: 600px;
+  }
+  .modal h3 { font-size: 1rem; margin-bottom: 14px; }
+  .modal input { margin-bottom: 12px; }
+  .modal-actions { display: flex; gap: 8px; }
+  .modal-actions .btn-primary { flex: 1; }
+
+  /* ── Geo error ── */
+  .info-box {
+    background: #fffbeb;
+    border: 1px solid #fcd34d;
+    border-radius: 8px;
+    padding: 10px 14px;
+    font-size: .88rem;
+    color: #92400e;
+    margin-top: 8px;
+    display: none;
+  }
+
+  @media (min-width: 480px) {
+    #map { height: 360px; }
+    .provider-stats { gap: 32px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <span class="logo">🗺️</span>
+  <h1>RouteCompare</h1>
+</header>
+
+<main>
+
+  <!-- Input card -->
+  <div class="card">
+    <h2>Route</h2>
+    <div class="input-group">
+
+      <div class="input-row">
+        <div class="autocomplete-wrapper" id="start-wrapper">
+          <input type="text" id="start-input" placeholder="Start address" autocomplete="off" />
+          <ul class="autocomplete-list" id="start-list" hidden></ul>
+        </div>
+        <button class="btn-icon" id="geo-btn" title="Use my location">📍</button>
+      </div>
+      <div class="info-box" id="geo-error"></div>
+
+      <div class="autocomplete-wrapper" id="end-wrapper">
+        <input type="text" id="end-input" placeholder="Destination address" autocomplete="off" />
+        <ul class="autocomplete-list" id="end-list" hidden></ul>
+      </div>
+
+      <button class="btn-primary" id="compare-btn">Compare Routes</button>
+    </div>
+  </div>
+
+  <!-- Favorites card -->
+  <div class="card">
+    <h2>Favourites</h2>
+    <div class="fav-row">
+      <select id="fav-select">
+        <option value="">— Load a saved route —</option>
+      </select>
+      <div class="fav-actions">
+        <button class="btn-outline btn-sm" id="save-fav-btn">💾 Save</button>
+        <button class="btn-danger btn-sm" id="del-fav-btn">🗑</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Network error -->
+  <div class="network-error" id="network-error">
+    <p id="network-error-msg">A network error occurred.</p>
+    <button class="btn-outline btn-sm" id="retry-btn">Retry</button>
+  </div>
+
+  <!-- Map -->
+  <div id="map"></div>
+  <div class="card" id="legend-card" style="display:none; padding:10px 16px; margin-top:-10px; margin-bottom:16px;">
+    <div class="map-legend">
+      <div class="legend-item"><div class="legend-dot" style="background:var(--here)"></div>HERE</div>
+      <div class="legend-item"><div class="legend-dot" style="background:var(--google)"></div>Google Maps</div>
+      <div class="legend-item"><div class="legend-dot" style="background:var(--tomtom)"></div>TomTom</div>
+    </div>
+  </div>
+
+  <!-- Loading -->
+  <div id="loading">
+    <div class="spinner"></div>
+    <p>Fetching live traffic data…</p>
+  </div>
+
+  <!-- Recommendation -->
+  <div id="recommendation"></div>
+
+  <!-- Provider cards -->
+  <div id="results">
+    <div class="provider-cards">
+      <div class="provider-card here"   id="card-here"></div>
+      <div class="provider-card google" id="card-google"></div>
+      <div class="provider-card tomtom" id="card-tomtom"></div>
+    </div>
+  </div>
+
+</main>
+
+<!-- Save favourite modal -->
+<div class="modal-overlay" id="modal-overlay">
+  <div class="modal">
+    <h3>Save this route as a favourite</h3>
+    <input type="text" id="fav-name-input" placeholder="e.g. Home → Work" />
+    <div class="modal-actions">
+      <button class="btn-outline" id="modal-cancel">Cancel</button>
+      <button class="btn-primary" id="modal-save">Save</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ─────────────────────────────────────────────
+//  State
+// ─────────────────────────────────────────────
+const state = {
+  startCoords: null,   // {lat, lng, label}
+  endCoords:   null,
+  lastResults: null,   // [{provider, time, distance, polyline, error}]
+};
+
+// ─────────────────────────────────────────────
+//  Map setup
+// ─────────────────────────────────────────────
+const map = L.map('map', { zoomControl: true }).setView([48.2, 16.37], 5);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+  maxZoom: 19,
+}).addTo(map);
+
+const COLORS = { here: '#0072C6', google: '#34A853', tomtom: '#FF6200' };
+const polylines = {};
+const markers   = [];
+
+function clearMap() {
+  Object.values(polylines).forEach(p => { if (p) map.removeLayer(p); });
+  markers.forEach(m => map.removeLayer(m));
+  markers.length = 0;
+}
+
+function addMarker(lat, lng, label) {
+  const m = L.marker([lat, lng])
+    .addTo(map)
+    .bindPopup(label);
+  markers.push(m);
+}
+
+function drawPolyline(key, coords, color) {
+  if (polylines[key]) map.removeLayer(polylines[key]);
+  if (!coords || coords.length === 0) return;
+  polylines[key] = L.polyline(coords, { color, weight: 5, opacity: .75 }).addTo(map);
+}
+
+function fitBounds() {
+  const all = Object.values(polylines).filter(Boolean);
+  if (!all.length) return;
+  const group = L.featureGroup(all);
+  map.fitBounds(group.getBounds().pad(.12));
+}
+
+// ─────────────────────────────────────────────
+//  Autocomplete (Nominatim)
+// ─────────────────────────────────────────────
+let acTimers = {};
+
+function attachAutocomplete(inputId, listId, coordsKey) {
+  const input = document.getElementById(inputId);
+  const list  = document.getElementById(listId);
+
+  input.addEventListener('input', () => {
+    clearTimeout(acTimers[inputId]);
+    const q = input.value.trim();
+    if (q.length < 3) { list.hidden = true; return; }
+    acTimers[inputId] = setTimeout(() => nominatimSearch(q, list, input, coordsKey), 350);
+  });
+
+  input.addEventListener('blur', () => {
+    setTimeout(() => { list.hidden = true; }, 200);
+  });
+}
+
+async function nominatimSearch(q, list, input, coordsKey) {
+  try {
+    const url = `https://nominatim.openstreetmap.org/search?format=json&limit=5&q=${encodeURIComponent(q)}`;
+    const res = await fetch(url, { headers: { 'Accept-Language': 'en' } });
+    const data = await res.json();
+    list.innerHTML = '';
+    if (!data.length) { list.hidden = true; return; }
+    data.forEach(item => {
+      const li = document.createElement('li');
+      li.textContent = item.display_name;
+      li.addEventListener('mousedown', () => {
+        input.value = item.display_name;
+        state[coordsKey] = { lat: parseFloat(item.lat), lng: parseFloat(item.lon), label: item.display_name };
+        list.hidden = true;
+      });
+      list.appendChild(li);
+    });
+    list.hidden = false;
+  } catch { list.hidden = true; }
+}
+
+attachAutocomplete('start-input', 'start-list', 'startCoords');
+attachAutocomplete('end-input',   'end-list',   'endCoords');
+
+// ─────────────────────────────────────────────
+//  Geolocation
+// ─────────────────────────────────────────────
+document.getElementById('geo-btn').addEventListener('click', () => {
+  const errBox = document.getElementById('geo-error');
+  errBox.style.display = 'none';
+
+  if (!navigator.geolocation) {
+    showGeoError('Geolocation is not supported by your browser.');
+    return;
+  }
+
+  const btn = document.getElementById('geo-btn');
+  btn.textContent = '⏳';
+  btn.disabled = true;
+
+  navigator.geolocation.getCurrentPosition(
+    async pos => {
+      const { latitude: lat, longitude: lng } = pos.coords;
+      btn.textContent = '📍';
+      btn.disabled = false;
+      // Reverse geocode via Nominatim
+      try {
+        const res  = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`);
+        const data = await res.json();
+        const label = data.display_name || `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+        document.getElementById('start-input').value = label;
+        state.startCoords = { lat, lng, label };
+      } catch {
+        document.getElementById('start-input').value = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+        state.startCoords = { lat, lng, label: 'My location' };
+      }
+    },
+    err => {
+      btn.textContent = '📍';
+      btn.disabled = false;
+      const msgs = {
+        1: 'Location access denied. Please allow location access and try again.',
+        2: 'Your location could not be determined.',
+        3: 'Location request timed out.',
+      };
+      showGeoError(msgs[err.code] || 'Unknown geolocation error.');
+    },
+    { timeout: 10000 }
+  );
+});
+
+function showGeoError(msg) {
+  const el = document.getElementById('geo-error');
+  el.textContent = msg;
+  el.style.display = 'block';
+}
+
+// ─────────────────────────────────────────────
+//  Geocode helper (Nominatim fallback)
+// ─────────────────────────────────────────────
+async function geocodeAddress(address) {
+  const res  = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(address)}`);
+  const data = await res.json();
+  if (!data.length) throw new Error('Address not found');
+  return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon), label: data[0].display_name };
+}
+
+// ─────────────────────────────────────────────
+//  Polyline decoders
+// ─────────────────────────────────────────────
+function decodeFlexiblePolyline(encoded) {
+  const ENCODING_TABLE = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
+  const dec = new Uint8Array(128);
+  for (let i = 0; i < ENCODING_TABLE.length; i++) dec[ENCODING_TABLE.charCodeAt(i)] = i;
+
+  let i = 0;
+  function readValue() {
+    let result = 0, shift = 0, chunk;
+    do {
+      chunk = dec[encoded.charCodeAt(i++)] - 32;
+      result |= (chunk & 0x1F) << shift;
+      shift += 5;
+    } while (chunk >= 0);
+    return (result & 1) ? ~(result >> 1) : result >> 1;
+  }
+
+  const version = dec[encoded.charCodeAt(i++)];
+  if (version !== 1) return [];
+  const headerInfo = dec[encoded.charCodeAt(i++)];
+  const precision = headerInfo & 0xF;
+  const coords = [];
+  let lat = 0, lng = 0;
+  while (i < encoded.length) {
+    lat += readValue();
+    lng += readValue();
+    coords.push([lat / Math.pow(10, precision), lng / Math.pow(10, precision)]);
+  }
+  return coords;
+}
+
+function decodeGooglePolyline(encoded) {
+  let index = 0, lat = 0, lng = 0;
+  const coords = [];
+  while (index < encoded.length) {
+    let b, shift = 0, result = 0;
+    do { b = encoded.charCodeAt(index++) - 63; result |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20);
+    lat += result & 1 ? ~(result >> 1) : result >> 1;
+    shift = 0; result = 0;
+    do { b = encoded.charCodeAt(index++) - 63; result |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20);
+    lng += result & 1 ? ~(result >> 1) : result >> 1;
+    coords.push([lat / 1e5, lng / 1e5]);
+  }
+  return coords;
+}
+
+// ─────────────────────────────────────────────
+//  Route similarity helpers
+// ─────────────────────────────────────────────
+function haversineDistance(lat1, lng1, lat2, lng2) {
+  const R = 6371000;
+  const toRad = x => x * Math.PI / 180;
+  const dLat = toRad(lat2 - lat1), dLng = toRad(lng2 - lng1);
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function samplePolyline(poly, n = 12) {
+  if (poly.length <= n) return poly;
+  return Array.from({ length: n }, (_, i) => poly[Math.round(i * (poly.length - 1) / (n - 1))]);
+}
+
+function polylinesSimilar(poly1, poly2, thresholdM = 400) {
+  const isNear = ([la, lo], full) =>
+    full.some(([la2, lo2]) => haversineDistance(la, lo, la2, lo2) <= thresholdM);
+  const samples1 = samplePolyline(poly1, 30);
+  const samples2 = samplePolyline(poly2, 30);
+  return samples1.every(pt => isNear(pt, poly2)) && samples2.every(pt => isNear(pt, poly1));
+}
+
+function allRoutesIdentical(results) {
+  const ok = results.filter(r => !r.error && r.polyline?.length > 1);
+  if (ok.length < 2) return false;
+  for (let i = 0; i < ok.length - 1; i++)
+    for (let j = i + 1; j < ok.length; j++)
+      if (!polylinesSimilar(ok[i].polyline, ok[j].polyline)) return false;
+  return true;
+}
+
+// ─────────────────────────────────────────────
+//  API calls
+// ─────────────────────────────────────────────
+
+async function fetchHERE(start, end) {
+  const key = CONFIG.HERE_API_KEY;
+  if (!key || key === 'YOUR_HERE_API_KEY') throw new Error('HERE API key not configured. See SETUP.md.');
+
+  const url = `https://router.hereapi.com/v8/routes?transportMode=car&origin=${start.lat},${start.lng}&destination=${end.lat},${end.lng}&return=polyline,travelSummary&departureTime=${encodeURIComponent(new Date().toISOString())}&apiKey=${key}`;
+  const res = await fetch(url);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.title || `HERE error ${res.status}`);
+  }
+  const data = await res.json();
+  const route   = data.routes[0];
+  const section = route.sections[0];
+  const summary = section.travelSummary;
+  const polyline = decodeFlexiblePolyline(section.polyline);
+  console.log('[HERE] raw polyline string (first 40):', section.polyline?.slice(0, 40));
+  console.log('[HERE] decoded polyline points:', polyline.length, 'first:', polyline[0]);
+  return {
+    provider: 'here',
+    time:     Math.round(summary.duration / 60),
+    distance: +(summary.length / 1000).toFixed(1),
+    polyline,
+  };
+}
+
+let _googleMapsPromise = null;
+
+function withTimeout(promise, ms, label) {
+  return new Promise((resolve, reject) => {
+    const t = setTimeout(() => reject(new Error(`${label} timed out after ${ms / 1000}s`)), ms);
+    promise.then(v => { clearTimeout(t); resolve(v); }, e => { clearTimeout(t); reject(e); });
+  });
+}
+
+function ensureGoogleMapsLoaded(apiKey) {
+  if (window.google?.maps?.DirectionsService) return Promise.resolve();
+  if (_googleMapsPromise) return _googleMapsPromise;
+  _googleMapsPromise = new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(apiKey)}`;
+    s.async = true;
+    s.onload = resolve;
+    s.onerror = () => { _googleMapsPromise = null; reject(new Error('Google Maps JS API failed to load – check that "Maps JavaScript API" is enabled for your key.')); };
+    document.head.appendChild(s);
+  });
+  return _googleMapsPromise;
+}
+
+async function fetchGoogle(start, end) {
+  const key = CONFIG.GOOGLE_API_KEY;
+  if (!key || key === 'YOUR_GOOGLE_API_KEY') throw new Error('Google API key not configured. See SETUP.md.');
+
+  await withTimeout(ensureGoogleMapsLoaded(key), 12000, 'Google Maps JS API load');
+
+  return withTimeout(new Promise((resolve, reject) => {
+    new google.maps.DirectionsService().route({
+      origin:      { lat: start.lat, lng: start.lng },
+      destination: { lat: end.lat,   lng: end.lng   },
+      travelMode:  google.maps.TravelMode.DRIVING,
+      drivingOptions: {
+        departureTime: new Date(),
+        trafficModel:  google.maps.TrafficModel.BEST_GUESS,
+      },
+    }, (result, status) => {
+      console.log('[Google] status:', status, 'result:', result);
+      if (status !== 'OK') { reject(new Error(`Google: ${status}`)); return; }
+      const leg = result.routes[0].legs[0];
+      const durationInTraffic = leg.duration_in_traffic?.value ?? leg.duration.value;
+      const overviewPath = result.routes[0].overview_path;
+      const polyline = overviewPath ? Array.from(overviewPath, p => [p.lat(), p.lng()]) : [];
+      console.log('[Google] polyline points:', polyline.length);
+      resolve({
+        provider: 'google',
+        time:     Math.round(durationInTraffic / 60),
+        distance: +(leg.distance.value / 1000).toFixed(1),
+        polyline,
+      });
+    });
+  }), 12000, 'Google Directions');
+}
+
+async function fetchTomTom(start, end) {
+  const key = CONFIG.TOMTOM_API_KEY;
+  if (!key || key === 'YOUR_TOMTOM_API_KEY') throw new Error('TomTom API key not configured. See SETUP.md.');
+
+  const url = `https://api.tomtom.com/routing/1/calculateRoute/${start.lat},${start.lng}:${end.lat},${end.lng}/json?traffic=true&travelMode=car&key=${key}`;
+  const res = await fetch(url);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detailedError?.message || `TomTom error ${res.status}`);
+  }
+  const data = await res.json();
+  const summary = data.routes[0].summary;
+  const points  = data.routes[0].legs[0].points;
+  return {
+    provider: 'tomtom',
+    time:     Math.round(summary.travelTimeInSeconds / 60),
+    distance: +(summary.lengthInMeters / 1000).toFixed(1),
+    polyline: points.map(p => [p.latitude, p.longitude]),
+  };
+}
+
+// ─────────────────────────────────────────────
+//  UI helpers
+// ─────────────────────────────────────────────
+function setLoading(on) {
+  document.getElementById('loading').style.display = on ? 'block' : 'none';
+  document.getElementById('compare-btn').disabled  = on;
+}
+
+function showNetworkError(msg) {
+  const el  = document.getElementById('network-error');
+  const msg2 = document.getElementById('network-error-msg');
+  msg2.textContent = msg;
+  el.style.display = 'block';
+}
+
+function hideNetworkError() {
+  document.getElementById('network-error').style.display = 'none';
+}
+
+function fmtTime(mins) {
+  if (mins < 60) return `${mins} min`;
+  return `${Math.floor(mins / 60)} h ${mins % 60} min`;
+}
+
+const PROVIDER_LABELS = { here: 'HERE Maps', google: 'Google Maps', tomtom: 'TomTom' };
+
+function renderProviderCard(id, result) {
+  const card = document.getElementById(`card-${id}`);
+  card.innerHTML = '';
+  card.classList.remove('fastest');
+
+  if (result.error) {
+    card.innerHTML = `
+      <div class="provider-name">${PROVIDER_LABELS[id]}</div>
+      <div class="error-msg">⚠️ ${result.error}</div>
+    `;
+    return;
+  }
+
+  if (result.fastest) {
+    card.classList.add('fastest');
+    card.innerHTML += `<div class="badge-fastest">⚡ Fastest</div>`;
+  }
+
+  card.innerHTML += `
+    <div class="provider-name">${PROVIDER_LABELS[id]}</div>
+    <div class="provider-stats">
+      <div class="stat">
+        <span class="stat-label">Travel time</span>
+        <span class="stat-value">${fmtTime(result.time)}</span>
+      </div>
+      <div class="stat">
+        <span class="stat-label">Distance</span>
+        <span class="stat-value">${result.distance} km</span>
+      </div>
+    </div>
+  `;
+}
+
+function buildDeepLink(provider, start, end) {
+  const s = `${start.lat},${start.lng}`;
+  const e = `${end.lat},${end.lng}`;
+  const sl = encodeURIComponent(start.label || s);
+  const el = encodeURIComponent(end.label   || e);
+
+  switch (provider) {
+    case 'google':
+      return `https://www.google.com/maps/dir/?api=1&origin=${sl}&destination=${el}&travelmode=driving`;
+    case 'here':
+      return `https://share.here.com/r/${start.lat},${start.lng},${end.lat},${end.lng}`;
+    case 'tomtom':
+      return `https://mydrive.tomtom.com/#mode=d&itinerary=${start.lat},${start.lng}:${end.lat},${end.lng}`;
+  }
+}
+
+function renderRecommendation(results, start, end, sameRoute) {
+  const successful = results.filter(r => !r.error);
+  const banner = document.getElementById('recommendation');
+  banner.className = '';
+  banner.style.display = 'none';
+
+  if (!successful.length) return;
+
+  const deepLinks = () => successful.map(r => {
+    const l = buildDeepLink(r.provider, start, end);
+    return `<a class="btn-open-app" href="${l}" target="_blank" rel="noopener" style="margin-right:8px;margin-top:8px;display:inline-block;">Open in ${PROVIDER_LABELS[r.provider]} ↗</a>`;
+  }).join('');
+
+  if (sameRoute) {
+    banner.className = 'similar';
+    banner.style.display = 'block';
+    banner.innerHTML = `
+      <h3>🛣️ All providers suggest the same route</h3>
+      <p>Time differences reflect each provider's traffic calculation, not a different road. There is no faster route to pick.</p>
+      ${deepLinks()}
+    `;
+    return;
+  }
+
+  const fastest  = successful.reduce((a, b) => a.time < b.time ? a : b);
+  const slowest  = successful.reduce((a, b) => a.time > b.time ? a : b);
+  const diffMins = slowest.time - fastest.time;
+
+  if (diffMins > 5) {
+    const link = buildDeepLink(fastest.provider, start, end);
+    banner.className = 'winner';
+    banner.style.display = 'block';
+    banner.innerHTML = `
+      <h3>🏆 ${PROVIDER_LABELS[fastest.provider]} is fastest</h3>
+      <p>Saves you <strong>${diffMins} min</strong> compared to ${PROVIDER_LABELS[slowest.provider]}.</p>
+      <a class="btn-open-app" href="${link}" target="_blank" rel="noopener">Open in ${PROVIDER_LABELS[fastest.provider]} ↗</a>
+    `;
+    successful.filter(r => r.provider !== fastest.provider).forEach(r => {
+      const l = buildDeepLink(r.provider, start, end);
+      banner.innerHTML += ` <a class="btn-open-app" href="${l}" target="_blank" rel="noopener" style="margin-left:8px;margin-top:8px;display:inline-block;">Open in ${PROVIDER_LABELS[r.provider]} ↗</a>`;
+    });
+  } else {
+    banner.className = 'similar';
+    banner.style.display = 'block';
+    banner.innerHTML = `<h3>✅ All routes are similar – choose any navigation app</h3>`;
+    banner.innerHTML += deepLinks();
+  }
+}
+
+// ─────────────────────────────────────────────
+//  Main compare flow
+// ─────────────────────────────────────────────
+async function compare() {
+  hideNetworkError();
+
+  // Resolve coordinates from text if not already set via autocomplete / geo
+  let start = state.startCoords;
+  let end   = state.endCoords;
+
+  const startText = document.getElementById('start-input').value.trim();
+  const endText   = document.getElementById('end-input').value.trim();
+
+  if (!startText || !endText) {
+    alert('Please enter both a start and destination address.');
+    return;
+  }
+
+  try {
+    if (!start || start.label !== startText)  start = await geocodeAddress(startText);
+    if (!end   || end.label   !== endText)    end   = await geocodeAddress(endText);
+  } catch (e) {
+    showNetworkError(`Could not geocode address: ${e.message}`);
+    return;
+  }
+
+  state.startCoords = start;
+  state.endCoords   = end;
+
+  setLoading(true);
+  document.getElementById('results').style.display = 'none';
+  document.getElementById('recommendation').style.display = 'none';
+  document.getElementById('legend-card').style.display = 'none';
+
+  clearMap();
+
+  // Fire all three in parallel; capture errors individually
+  const fetchers = [
+    fetchHERE(start, end).catch(e => ({ provider: 'here',   error: e.message })),
+    fetchGoogle(start, end).catch(e => ({ provider: 'google', error: e.message })),
+    fetchTomTom(start, end).catch(e => ({ provider: 'tomtom', error: e.message })),
+  ];
+
+  const results = await Promise.all(fetchers);
+  state.lastResults = results;
+  console.log('[compare] results:', results.map(r => ({ provider: r.provider, error: r.error, pts: r.polyline?.length })));
+
+  setLoading(false);
+
+  const successful = results.filter(r => !r.error);
+  if (!successful.length) {
+    showNetworkError('All providers failed. Check your API keys in config.js (see SETUP.md) and your internet connection.');
+    return;
+  }
+
+  // Check if all providers returned the same physical route
+  const sameRoute = allRoutesIdentical(results);
+
+  // Mark fastest only when routes actually differ
+  if (!sameRoute) {
+    const fastest = successful.reduce((a, b) => a.time < b.time ? a : b);
+    results.forEach(r => { r.fastest = !r.error && r.provider === fastest.provider; });
+  }
+
+  // Draw map
+  addMarker(start.lat, start.lng, `<b>Start</b><br>${start.label}`);
+  addMarker(end.lat,   end.lng,   `<b>End</b><br>${end.label}`);
+
+  results.forEach(r => {
+    if (!r.error && r.polyline.length) {
+      drawPolyline(r.provider, r.polyline, COLORS[r.provider]);
+    }
+  });
+  fitBounds();
+
+  // Show legend
+  document.getElementById('legend-card').style.display = 'block';
+
+  // Render cards
+  ['here', 'google', 'tomtom'].forEach(id => {
+    const r = results.find(x => x.provider === id) || { provider: id, error: 'Unknown error' };
+    renderProviderCard(id, r);
+  });
+  document.getElementById('results').style.display = 'block';
+
+  // Recommendation
+  renderRecommendation(results, start, end, sameRoute);
+
+  // Warning if some failed
+  if (results.some(r => r.error) && successful.length > 0) {
+    const failed = results.filter(r => r.error).map(r => PROVIDER_LABELS[r.provider]).join(', ');
+    showNetworkError(`Some providers failed: ${failed}. Results shown for the others.`);
+  }
+}
+
+document.getElementById('compare-btn').addEventListener('click', compare);
+document.getElementById('retry-btn').addEventListener('click', compare);
+
+// ─────────────────────────────────────────────
+//  Favourites
+// ─────────────────────────────────────────────
+const MAX_FAVS = 5;
+
+function loadFavs() {
+  try { return JSON.parse(localStorage.getItem('routecompare_favs') || '[]'); } catch { return []; }
+}
+
+function saveFavs(favs) {
+  localStorage.setItem('routecompare_favs', JSON.stringify(favs));
+}
+
+function renderFavSelect() {
+  const sel  = document.getElementById('fav-select');
+  const favs = loadFavs();
+  sel.innerHTML = '<option value="">— Load a saved route —</option>';
+  favs.forEach((f, i) => {
+    const opt = document.createElement('option');
+    opt.value = i;
+    opt.textContent = f.name;
+    sel.appendChild(opt);
+  });
+}
+
+renderFavSelect();
+
+document.getElementById('fav-select').addEventListener('change', function () {
+  const idx = parseInt(this.value);
+  if (isNaN(idx)) return;
+  const favs = loadFavs();
+  const fav  = favs[idx];
+  if (!fav) return;
+  document.getElementById('start-input').value = fav.startLabel;
+  document.getElementById('end-input').value   = fav.endLabel;
+  state.startCoords = { lat: fav.startLat, lng: fav.startLng, label: fav.startLabel };
+  state.endCoords   = { lat: fav.endLat,   lng: fav.endLng,   label: fav.endLabel };
+});
+
+// Open save modal
+document.getElementById('save-fav-btn').addEventListener('click', () => {
+  const startText = document.getElementById('start-input').value.trim();
+  const endText   = document.getElementById('end-input').value.trim();
+  if (!startText || !endText) {
+    alert('Enter start and destination addresses first.');
+    return;
+  }
+  const favs = loadFavs();
+  if (favs.length >= MAX_FAVS) {
+    alert(`You can save up to ${MAX_FAVS} favourites. Delete one first.`);
+    return;
+  }
+  document.getElementById('fav-name-input').value = `${startText.split(',')[0]} → ${endText.split(',')[0]}`;
+  document.getElementById('modal-overlay').classList.add('open');
+});
+
+document.getElementById('modal-cancel').addEventListener('click', () => {
+  document.getElementById('modal-overlay').classList.remove('open');
+});
+
+document.getElementById('modal-save').addEventListener('click', () => {
+  const name = document.getElementById('fav-name-input').value.trim();
+  if (!name) { alert('Please enter a name.'); return; }
+
+  const start = state.startCoords;
+  const end   = state.endCoords;
+  if (!start || !end) {
+    alert('Please geocode the addresses first by clicking Compare.');
+    return;
+  }
+
+  const favs = loadFavs();
+  favs.push({
+    name,
+    startLabel: start.label, startLat: start.lat, startLng: start.lng,
+    endLabel:   end.label,   endLat:   end.lat,   endLng:   end.lng,
+  });
+  saveFavs(favs);
+  renderFavSelect();
+  document.getElementById('modal-overlay').classList.remove('open');
+});
+
+document.getElementById('del-fav-btn').addEventListener('click', () => {
+  const sel = document.getElementById('fav-select');
+  const idx = parseInt(sel.value);
+  if (isNaN(idx)) { alert('Select a favourite to delete.'); return; }
+  const favs = loadFavs();
+  favs.splice(idx, 1);
+  saveFavs(favs);
+  renderFavSelect();
+});
+
+// Close modal on overlay click
+document.getElementById('modal-overlay').addEventListener('click', function (e) {
+  if (e.target === this) this.classList.remove('open');
+});
+</script>
+</body>
+</html>
