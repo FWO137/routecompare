@@ -490,15 +490,15 @@
     <p>Keys are stored only in your browser (localStorage) and never sent anywhere except the respective map provider.</p>
     <div class="setup-field">
       <label>HERE Maps API Key</label>
-      <input type="text" id="key-here" placeholder="Paste HERE API key…" autocomplete="off" />
+      <input type="password" id="key-here" placeholder="Paste HERE API key…" autocomplete="new-password" />
     </div>
     <div class="setup-field">
       <label>Google Maps API Key</label>
-      <input type="text" id="key-google" placeholder="Paste Google API key…" autocomplete="off" />
+      <input type="password" id="key-google" placeholder="Paste Google API key…" autocomplete="new-password" />
     </div>
     <div class="setup-field">
       <label>TomTom API Key</label>
-      <input type="text" id="key-tomtom" placeholder="Paste TomTom API key…" autocomplete="off" />
+      <input type="password" id="key-tomtom" placeholder="Paste TomTom API key…" autocomplete="new-password" />
     </div>
     <div class="modal-actions">
       <button class="btn-outline" id="setup-cancel">Cancel</button>
@@ -534,9 +534,15 @@ function getKeys() {
 
 function openSetup() {
   const k = getKeys();
-  document.getElementById('key-here').value   = k.HERE_API_KEY;
-  document.getElementById('key-google').value = k.GOOGLE_API_KEY;
-  document.getElementById('key-tomtom').value = k.TOMTOM_API_KEY;
+  const hereEl   = document.getElementById('key-here');
+  const googleEl = document.getElementById('key-google');
+  const tomtomEl = document.getElementById('key-tomtom');
+  hereEl.value   = '';
+  googleEl.value = '';
+  tomtomEl.value = '';
+  hereEl.placeholder   = k.HERE_API_KEY   ? '● Key gespeichert – neu eingeben zum Ändern' : 'HERE API Key einfügen…';
+  googleEl.placeholder = k.GOOGLE_API_KEY ? '● Key gespeichert – neu eingeben zum Ändern' : 'Google API Key einfügen…';
+  tomtomEl.placeholder = k.TOMTOM_API_KEY ? '● Key gespeichert – neu eingeben zum Ändern' : 'TomTom API Key einfügen…';
   document.getElementById('setup-overlay').classList.add('open');
 }
 
@@ -545,10 +551,12 @@ document.getElementById('setup-cancel').addEventListener('click', () => {
   document.getElementById('setup-overlay').classList.remove('open');
 });
 document.getElementById('setup-save').addEventListener('click', () => {
-  localStorage.setItem('rc_here',   document.getElementById('key-here').value.trim());
-  localStorage.setItem('rc_google', document.getElementById('key-google').value.trim());
-  localStorage.setItem('rc_tomtom', document.getElementById('key-tomtom').value.trim());
-  _googleMapsPromise = null;
+  const newHere   = document.getElementById('key-here').value.trim();
+  const newGoogle = document.getElementById('key-google').value.trim();
+  const newTomtom = document.getElementById('key-tomtom').value.trim();
+  if (newHere)   localStorage.setItem('rc_here',   newHere);
+  if (newGoogle) { localStorage.setItem('rc_google', newGoogle); _googleMapsPromise = null; }
+  if (newTomtom) localStorage.setItem('rc_tomtom', newTomtom);
   document.getElementById('setup-overlay').classList.remove('open');
 });
 document.getElementById('setup-overlay').addEventListener('click', function(e) {
