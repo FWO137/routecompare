@@ -12,7 +12,6 @@
   :root {
     --here:    #0072C6;
     --google:  #34A853;
-    --tomtom:  #FF6200;
     --bg:      #f4f6f9;
     --surface: #ffffff;
     --text:    #1a1a2e;
@@ -242,7 +241,6 @@
   }
   .provider-card.here    { border-left-color: var(--here); }
   .provider-card.google  { border-left-color: var(--google); }
-  .provider-card.tomtom  { border-left-color: var(--tomtom); }
   .provider-card.fastest { background: var(--fastest-bg); }
 
   .provider-card .badge-fastest {
@@ -459,7 +457,6 @@
     <div class="map-legend">
       <div class="legend-item"><div class="legend-dot" style="background:var(--here)"></div>HERE</div>
       <div class="legend-item"><div class="legend-dot" style="background:var(--google)"></div>Google Maps</div>
-      <div class="legend-item"><div class="legend-dot" style="background:var(--tomtom)"></div>TomTom</div>
     </div>
   </div>
 
@@ -477,7 +474,6 @@
     <div class="provider-cards">
       <div class="provider-card here"   id="card-here"></div>
       <div class="provider-card google" id="card-google"></div>
-      <div class="provider-card tomtom" id="card-tomtom"></div>
     </div>
   </div>
 
@@ -495,10 +491,6 @@
     <div class="setup-field">
       <label>Google Maps API Key</label>
       <input type="password" id="key-google" placeholder="Paste Google API key…" autocomplete="new-password" />
-    </div>
-    <div class="setup-field">
-      <label>TomTom API Key</label>
-      <input type="password" id="key-tomtom" placeholder="Paste TomTom API key…" autocomplete="new-password" />
     </div>
     <div class="modal-actions">
       <button class="btn-outline" id="setup-cancel">Cancel</button>
@@ -528,7 +520,6 @@ function getKeys() {
   return {
     HERE_API_KEY:   c.HERE_API_KEY   || localStorage.getItem('rc_here')   || '',
     GOOGLE_API_KEY: c.GOOGLE_API_KEY || localStorage.getItem('rc_google') || '',
-    TOMTOM_API_KEY: c.TOMTOM_API_KEY || localStorage.getItem('rc_tomtom') || '',
   };
 }
 
@@ -536,13 +527,10 @@ function openSetup() {
   const k = getKeys();
   const hereEl   = document.getElementById('key-here');
   const googleEl = document.getElementById('key-google');
-  const tomtomEl = document.getElementById('key-tomtom');
   hereEl.value   = '';
   googleEl.value = '';
-  tomtomEl.value = '';
   hereEl.placeholder   = k.HERE_API_KEY   ? '● Key gespeichert – neu eingeben zum Ändern' : 'HERE API Key einfügen…';
   googleEl.placeholder = k.GOOGLE_API_KEY ? '● Key gespeichert – neu eingeben zum Ändern' : 'Google API Key einfügen…';
-  tomtomEl.placeholder = k.TOMTOM_API_KEY ? '● Key gespeichert – neu eingeben zum Ändern' : 'TomTom API Key einfügen…';
   document.getElementById('setup-overlay').classList.add('open');
 }
 
@@ -553,10 +541,8 @@ document.getElementById('setup-cancel').addEventListener('click', () => {
 document.getElementById('setup-save').addEventListener('click', () => {
   const newHere   = document.getElementById('key-here').value.trim();
   const newGoogle = document.getElementById('key-google').value.trim();
-  const newTomtom = document.getElementById('key-tomtom').value.trim();
   if (newHere)   localStorage.setItem('rc_here',   newHere);
   if (newGoogle) { localStorage.setItem('rc_google', newGoogle); _googleMapsPromise = null; }
-  if (newTomtom) localStorage.setItem('rc_tomtom', newTomtom);
   document.getElementById('setup-overlay').classList.remove('open');
 });
 document.getElementById('setup-overlay').addEventListener('click', function(e) {
@@ -565,7 +551,7 @@ document.getElementById('setup-overlay').addEventListener('click', function(e) {
 
 // Show setup automatically only if no keys available from any source
 const _k = getKeys();
-if (!_k.HERE_API_KEY && !_k.GOOGLE_API_KEY && !_k.TOMTOM_API_KEY) {
+if (!_k.HERE_API_KEY && !_k.GOOGLE_API_KEY) {
   openSetup();
 }
 
@@ -587,8 +573,8 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
   maxZoom: 19,
 }).addTo(map);
 
-const COLORS    = { here: '#0072C6', google: '#34A853', tomtom: '#FF6200' };
-const OPACITIES = { here: 0.85,    google: 0.85,      tomtom: 0.45 };
+const COLORS    = { here: '#0072C6', google: '#34A853' };
+const OPACITIES = { here: 0.85,    google: 0.85 };
 const polylines = {};
 const markers   = [];
 
@@ -892,27 +878,6 @@ async function fetchGoogle(start, end) {
   }), 12000, 'Google Directions');
 }
 
-async function fetchTomTom(start, end) {
-  const key = getKeys().TOMTOM_API_KEY;
-  if (!key) throw new Error('TomTom API key not configured. Click ⚙️ to add your keys.');
-
-  const url = `https://api.tomtom.com/routing/1/calculateRoute/${start.lat},${start.lng}:${end.lat},${end.lng}/json?traffic=true&travelMode=car&key=${key}`;
-  const res = await fetch(url);
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.detailedError?.message || `TomTom error ${res.status}`);
-  }
-  const data = await res.json();
-  const summary = data.routes[0].summary;
-  const points  = data.routes[0].legs[0].points;
-  return {
-    provider: 'tomtom',
-    time:     Math.round(summary.travelTimeInSeconds / 60),
-    distance: +(summary.lengthInMeters / 1000).toFixed(1),
-    polyline: points.map(p => [p.latitude, p.longitude]),
-  };
-}
-
 // ─────────────────────────────────────────────
 //  UI helpers
 // ─────────────────────────────────────────────
@@ -937,7 +902,7 @@ function fmtTime(mins) {
   return `${Math.floor(mins / 60)} h ${mins % 60} min`;
 }
 
-const PROVIDER_LABELS = { here: 'HERE Maps', google: 'Google Maps', tomtom: 'TomTom' };
+const PROVIDER_LABELS = { here: 'HERE Maps', google: 'Google Maps' };
 
 function renderProviderCard(id, result) {
   const card = document.getElementById(`card-${id}`);
@@ -983,8 +948,6 @@ function buildDeepLink(provider, start, end) {
       return `https://www.google.com/maps/dir/?api=1&origin=${sl}&destination=${el}&travelmode=driving`;
     case 'here':
       return `https://share.here.com/r/${start.lat},${start.lng},${end.lat},${end.lng}`;
-    case 'tomtom':
-      return `https://mydrive.tomtom.com/#mode=d&itinerary=${start.lat},${start.lng}:${end.lat},${end.lng}`;
   }
 }
 
@@ -1073,11 +1036,9 @@ async function compare() {
 
   clearMap();
 
-  // Fire all three in parallel; capture errors individually
   const fetchers = [
     fetchHERE(start, end).catch(e => ({ provider: 'here',   error: e.message })),
     fetchGoogle(start, end).catch(e => ({ provider: 'google', error: e.message })),
-    fetchTomTom(start, end).catch(e => ({ provider: 'tomtom', error: e.message })),
   ];
 
   const results = await Promise.all(fetchers);
@@ -1105,8 +1066,8 @@ async function compare() {
   addMarker(start.lat, start.lng, `<b>Start</b><br>${start.label}`);
   addMarker(end.lat,   end.lng,   `<b>End</b><br>${end.label}`);
 
-  // Draw tomtom first (bottom), google second, here last (top) so blue/green stay visible
-  ['tomtom', 'google', 'here'].forEach(provider => {
+  // Draw google first (bottom), here last (top) so blue stays visible
+  ['google', 'here'].forEach(provider => {
     const r = results.find(x => x.provider === provider);
     if (r && !r.error && r.polyline.length) {
       drawPolyline(r.provider, r.polyline, COLORS[r.provider]);
@@ -1118,7 +1079,7 @@ async function compare() {
   document.getElementById('legend-card').style.display = 'block';
 
   // Render cards
-  ['here', 'google', 'tomtom'].forEach(id => {
+  ['here', 'google'].forEach(id => {
     const r = results.find(x => x.provider === id) || { provider: id, error: 'Unknown error' };
     renderProviderCard(id, r);
   });

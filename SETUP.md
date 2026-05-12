@@ -1,6 +1,6 @@
 # RouteCompare – API Key Setup
 
-You need three API keys to use RouteCompare. All three have free tiers sufficient for personal use. After obtaining each key, paste it into `config.js`.
+You need two API keys to use RouteCompare. Both have free tiers sufficient for personal use. After obtaining each key, paste it into `config.js`.
 
 ---
 
@@ -34,18 +34,6 @@ You need three API keys to use RouteCompare. All three have free tiers sufficien
 
 ---
 
-## 3. TomTom API Key
-
-**Free tier:** 2,500 requests/day
-
-1. Go to https://developer.tomtom.com/user/register and create a free account.
-2. After logging in, go to **My Apps** → **Add new app**.
-3. Give the app a name and enable the **Routing API** product.
-4. Copy the generated API key.
-5. Paste it as `TOMTOM_API_KEY` in `config.js`.
-
----
-
 ## Final Step
 
 Open `config.js` in a text editor and replace the placeholder values:
@@ -54,7 +42,6 @@ Open `config.js` in a text editor and replace the placeholder values:
 const CONFIG = {
   HERE_API_KEY:   "paste-your-here-key-here",
   GOOGLE_API_KEY: "paste-your-google-key-here",
-  TOMTOM_API_KEY: "paste-your-tomtom-key-here",
 };
 ```
 
