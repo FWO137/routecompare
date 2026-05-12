@@ -587,7 +587,8 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
   maxZoom: 19,
 }).addTo(map);
 
-const COLORS = { here: '#0072C6', google: '#34A853', tomtom: '#FF6200' };
+const COLORS    = { here: '#0072C6', google: '#34A853', tomtom: '#FF6200' };
+const OPACITIES = { here: 0.85,    google: 0.85,      tomtom: 0.45 };
 const polylines = {};
 const markers   = [];
 
@@ -607,7 +608,7 @@ function addMarker(lat, lng, label) {
 function drawPolyline(key, coords, color) {
   if (polylines[key]) map.removeLayer(polylines[key]);
   if (!coords || coords.length === 0) return;
-  polylines[key] = L.polyline(coords, { color, weight: 5, opacity: .75 }).addTo(map);
+  polylines[key] = L.polyline(coords, { color, weight: 5, opacity: OPACITIES[key] ?? 0.75 }).addTo(map);
 }
 
 function fitBounds() {
@@ -1104,8 +1105,10 @@ async function compare() {
   addMarker(start.lat, start.lng, `<b>Start</b><br>${start.label}`);
   addMarker(end.lat,   end.lng,   `<b>End</b><br>${end.label}`);
 
-  results.forEach(r => {
-    if (!r.error && r.polyline.length) {
+  // Draw tomtom first (bottom), google second, here last (top) so blue/green stay visible
+  ['tomtom', 'google', 'here'].forEach(provider => {
+    const r = results.find(x => x.provider === provider);
+    if (r && !r.error && r.polyline.length) {
       drawPolyline(r.provider, r.polyline, COLORS[r.provider]);
     }
   });
